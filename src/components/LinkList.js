@@ -1,10 +1,16 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import Link from './Link';
+import { LINKS_PER_PAGE } from '../constants';
 import { useQuery, gql } from '@apollo/client';
 
 export const FEED_QUERY = gql`
-  {
-    feed {
+  query FeedQuery(
+    $take: Int
+    $skip: Int
+    $orderBy: LinkOrderByInput
+  ) {
+    feed(take: $take, skip: $skip, orderBy: $orderBy) {
       id
       links {
         id
@@ -22,6 +28,7 @@ export const FEED_QUERY = gql`
           }
         }
       }
+      count
     }
   }
 `;
@@ -74,11 +81,31 @@ const NEW_VOTES_SUBSCRIPTION = gql`
   }
 `;
 
+const getQueryVariables = (isNewPage, page) => {
+  const skip = isNewPage ? (page - 1) * LINKS_PER_PAGE : 0;
+  const take = isNewPage ? LINKS_PER_PAGE : 100;
+  const orderBy = { createdAt: 'desc' };
+  return { take, skip, orderBy };
+};
+
 const LinkList = () => {
+  const location = useLocation();
+  const isNewPage = location.pathname.includes(
+    'new'
+  );
+  const pageIndexParams = location.pathname.split(
+    '/'
+  );
+  const page = parseInt(
+    pageIndexParams[pageIndexParams.length - 1]
+  );
+  const pageIndex = page ? (page - 1) * LINKS_PER_PAGE : 0;
   const {
     data,
     subscribeToMore
-  } = useQuery(FEED_QUERY);
+  } = useQuery(FEED_QUERY, {
+    variables: getQueryVariables(isNewPage, page),
+  });
   const links = data?.feed?.links ?? [];
 
   subscribeToMore({
