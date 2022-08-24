@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Link from './Link';
 import { LINKS_PER_PAGE } from '../constants';
 import { useQuery, gql } from '@apollo/client';
@@ -88,7 +88,19 @@ const getQueryVariables = (isNewPage, page) => {
   return { take, skip, orderBy };
 };
 
+const getLinksToRender = (isNewPage, data) => {
+  if (isNewPage) {
+    return data.feed.links;
+  }
+  const rankedLinks = data.feed.links.slice();
+  rankedLinks.sort(
+    (l1, l2) => l2.votes.length - l1.votes.length
+  );
+  return rankedLinks;
+};
+
 const LinkList = () => {
+  const navigate = useNavigate();
   const location = useLocation();
   const isNewPage = location.pathname.includes(
     'new'
@@ -102,11 +114,12 @@ const LinkList = () => {
   const pageIndex = page ? (page - 1) * LINKS_PER_PAGE : 0;
   const {
     data,
+    error,
+    loading,
     subscribeToMore
   } = useQuery(FEED_QUERY, {
     variables: getQueryVariables(isNewPage, page),
   });
-  const links = data?.feed?.links ?? [];
 
   subscribeToMore({
     document: NEW_LINKS_SUBSCRIPTION,
@@ -133,11 +146,51 @@ const LinkList = () => {
   });
 
   return (
-    <div>
-      {links.map((link, index) => (
-        <Link key={link.id} link={link} index={index} />
-      ))}
-    </div>
+    <>
+      {loading && <p>Loading...</p>}
+      {error && <pre>{JSON.stringify(error, null, 2)}</pre>}
+      {data && (
+        <>
+          {getLinksToRender(isNewPage, data).map(
+            (link, index) => (
+              <Link
+                key={link.id}
+                link={link}
+                index={index + pageIndex}
+              />
+            )
+          )}
+          {isNewPage && (
+            <div className="flex ml4 mv3 gray">
+              <div
+                className="pointer mr2"
+                onClick={() => {
+                  if (page > 1) {
+                    navigate(`/new/${page - 1}`);
+                  }
+                }}
+              >
+                Previous
+              </div>
+              <div
+                className="pointer"
+                onClick={() => {
+                  if (
+                    page <=
+                    data.feed.count / LINKS_PER_PAGE
+                  ) {
+                    const nextPage = page + 1;
+                    navigate(`/new/${nextPage}`);
+                  }
+                }}
+              >
+                Next
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </>
   );
 };
 
